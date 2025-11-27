@@ -457,6 +457,72 @@ class Screen(object):
     def show_camera(self,camera):
         self.timer =lv.timer_create(lambda t: self.show_camera_img(camera.capture()), 50, None)
         
+    def make_snapshot(self):
+        print("make snapshot called.")
+        dsc = lv.snapshot_take(lv.screen_active(), lv.COLOR_FORMAT.RGB565)
+        if dsc:
+            #img = lv.img(lv.screen_active())
+            #lv.img_set_src(img, dsc)
+            #img.center()
+            # Später freigeben (wichtig, sonst RAM-Leak!)
+            # lv.snapshot_free(dsc)
+            print("Snapshot done.")
+        else:
+            print("Snapshot failed.")
+            
+    def save_camera_img(self, buf, filename="/capture.bmp"):
+        """
+        Speichert den Kamerabuffer (RGB565, 240x320) als BMP-Datei.
+        Der Buffer wird exakt so verwendet wie in show_camera_img().
+        """
+        WIDTH  = 240
+        HEIGHT = 320
+
+        # Falls der Buffer noch nicht geswapt ist (wie in show_camera_img), swappen wir ihn hier temporär
+        # (wir arbeiten auf einer Kopie, damit der Originalbuffer unverändert bleibt)
+        #import copy
+        #buf_copy = copy.copy(buf)
+        lv.draw_sw_rgb565_swap(buf, WIDTH * HEIGHT * 2)  # gleicher Swap wie bei Anzeige
+
+        # BMP-Header vorbereiten
+        import ustruct
+        row_padded = (WIDTH * 3 + 3) & ~3                    # BMP-Zeilen müssen durch 4 teilbar sein
+        padding = b'\x00' * (row_padded - WIDTH * 3)
+        file_size = 54 + (HEIGHT * row_padded)
+
+        with open(filename, "wb") as f:
+            # BMP File Header (14 Byte)
+            f.write(b'BM')                                  # Signature
+            f.write(ustruct.pack("<I", file_size))          # File size
+            f.write(b'\x00\x00\x00\x00')                    # Reserved
+            f.write(ustruct.pack("<I", 54))                 # Offset to pixel data
+
+            # DIB Header (40 Byte)
+            f.write(ustruct.pack("<I", 40))                 # DIB header size
+            f.write(ustruct.pack("<i", WIDTH))
+            f.write(ustruct.pack("<i", HEIGHT))
+            f.write(b'\x01\x00')                            # Planes
+            f.write(b'\x18\x00')                            # 24 Bit
+            f.write(b'\x00\x00\x00\x00')                    # No compression
+            f.write(ustruct.pack("<I", HEIGHT * row_padded))  # Image size (kann 0 sein, aber wir setzen es)
+            f.write(b'\x00\x00\x00\x00\x00\x00\x00\x00')    # PPM (0)
+            f.write(b'\x00\x00\x00\x00\x00\x00\x00\x00')    # Colors used / important
+
+            # Pixel-Daten (BGR, bottom-up, aus RGB565)
+            pos = 0
+            for y in range(HEIGHT - 1, -1, -1):             # von unten nach oben
+                for x in range(WIDTH):
+                    pixel = buf[pos] | (buf[pos + 1] << 8)
+                    b = (pixel & 0x1F) << 3
+                    g = ((pixel >> 5) & 0x3F) << 2
+                    r = ((pixel >> 11) & 0x1F) << 3
+                    f.write(bytes([b, g, r]))
+                    pos += 2
+                f.write(padding)                             # Zeilen-Padding
+
+        print("Kamerabild gespeichert:", filename)
+    
+
     def deinit(self):
         if hasattr(self, 'timer') and self.timer:
             try:
