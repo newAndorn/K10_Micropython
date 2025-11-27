@@ -522,6 +522,62 @@ class Screen(object):
 
         print("Kamerabild gespeichert:", filename)
     
+    def capture_and_encode_jpeg(self, camera, filename="/capture.jpg", quality=60):
+        """
+        Captures an image from the camera and encodes it as JPEG.
+        
+        Args:
+            camera: Camera object with capture() method
+            filename: Output filename for the JPEG (default: "/capture.jpg")
+            quality: JPEG quality 1-100 (default: 60, higher = better quality but larger file)
+        
+        Returns:
+            bytes: JPEG encoded image data, or None if encoding failed
+        """
+        try:
+            import jpeg
+        except ImportError:
+            print("Error: jpeg module not found. Make sure esp_new_jpeg is included in the build.")
+            return None
+        
+        # Capture image from camera
+        buf = camera.capture()
+        if not buf:
+            print("Error: Failed to capture image from camera")
+            return None
+        
+        # Camera typically returns RGB565 format, 240x320 for this device
+        WIDTH = 240
+        HEIGHT = 320
+        
+        # Validate buffer size
+        expected_size = WIDTH * HEIGHT * 2
+        if len(buf) < expected_size:
+            print(f"Error: Buffer size mismatch. Expected {expected_size}, got {len(buf)}")
+            return None
+        
+        # The camera buffer might need byte swapping for RGB565_BE format
+        # Create a copy to avoid modifying the original buffer
+        buf_copy = bytearray(buf[:expected_size])
+        
+        # Note: The jpeg.encode_rgb565 function expects RGB565_BE (big endian)
+        # If your camera returns little endian, you may need to swap bytes
+        # For now, we'll use the buffer as-is since show_camera_img uses swap
+        
+        # Encode to JPEG
+        try:
+            jpeg_data = jpeg.encode_rgb565(buf_copy, WIDTH, HEIGHT, quality)
+            
+            # Save to file if filename is provided
+            if filename:
+                with open(filename, "wb") as f:
+                    f.write(jpeg_data)
+                print(f"JPEG image saved: {filename} ({len(jpeg_data)} bytes)")
+            
+            return jpeg_data
+        except Exception as e:
+            print(f"Error encoding JPEG: {e}")
+            return None
 
     def deinit(self):
         if hasattr(self, 'timer') and self.timer:
