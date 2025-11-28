@@ -479,12 +479,17 @@ def build_commands(_, extra_args, script_dir, lv_cflags, ___):
     submodules_cmd[1] = 'submodules'
     submodules_cmd.append(f'BOARD={board}')
 
+    # Use absolute path to avoid "Argument list too long" errors
+    user_c_modules_path = os.path.abspath(
+        os.path.join(script_dir, 'ext_mod', 'micropython.cmake')
+    )
+
     esp_cmd.extend([
         'SECOND_BUILD=0',
         f'LV_CFLAGS="{lv_cflags}"',
         f'LV_PORT=esp32',
         f'BOARD={board}',
-        'USER_C_MODULES=../../../../../ext_mod/micropython.cmake'
+        f'USER_C_MODULES={user_c_modules_path}'
     ])
 
     # esp_cmd.extend(extra_args)
