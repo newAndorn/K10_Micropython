@@ -157,7 +157,6 @@ idf_component_register(
         linker.lf
     REQUIRES
         ${IDF_COMPONENTS}
-        esp_new_jpeg
 )
 
 # Set the MicroPython target as the current (main) IDF component target.
